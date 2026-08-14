@@ -66,15 +66,29 @@ export const formatDateTime = (isoString: string): string => {
   if (isNaN(date.getTime())) return isoString;
 
   const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
+  
+  // Format in IST (Asia/Kolkata)
+  const isToday = date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) === 
+                  now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
 
-  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('en-IN', { 
+    timeZone: 'Asia/Kolkata', 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+  
+  const dateStr = date.toLocaleDateString('en-IN', { 
+    timeZone: 'Asia/Kolkata', 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
 
   if (isToday) {
-    return `Today at ${timeStr}`;
+    return `Today @ ${timeStr} IST`;
   }
-  return `${dateStr} @ ${timeStr}`;
+  return `${dateStr} @ ${timeStr} IST`;
 };
 
 export const getDueDateBadgeStatus = (isoString: string, isCompleted: boolean) => {
@@ -87,7 +101,9 @@ export const getDueDateBadgeStatus = (isoString: string, isCompleted: boolean) =
     return { label: 'Overdue', colorClass: 'badge-overdue' };
   }
 
-  const isToday = due.toDateString() === now.toDateString();
+  const isToday = due.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) === 
+                  now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+                  
   if (isToday) {
     return { label: 'Due Today', colorClass: 'badge-today' };
   }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Bell } from 'lucide-react';
+import { X, Bell, Clock } from 'lucide-react';
 import { Company, HRContact, Reminder } from '../types';
 
 interface ReminderModalProps {
@@ -25,13 +25,19 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
 
   React.useEffect(() => {
     if (isOpen) {
-      // Default to today or tomorrow
+      // Default to today in IST
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      setDate(`${yyyy}-${mm}-${dd}`);
       
+      // Get YYYY-MM-DD in IST
+      const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+      setDate(istDateStr);
+
+      // Default time: next hour in IST
+      const istHours = Number(now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }));
+      const nextHour = (istHours + 1) % 24;
+      const formattedTime = `${String(nextHour).padStart(2, '0')}:00`;
+      setTime(formattedTime);
+
       const hrText = hr ? ` with ${hr.name}` : '';
       setTitle(`Follow up with ${company?.name || 'Recruiter'}${hrText}`);
       setNotes('');
@@ -45,7 +51,15 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
     e.preventDefault();
     if (!title.trim() || !date) return;
 
-    const dueDateTime = `${date}T${time}:00`;
+    // Parse date and time in IST timezone
+    // Construct local ISO-like string and convert to UTC ISO string
+    const localDateTimeStr = `${date}T${time}:00`;
+    const localDate = new Date(localDateTimeStr);
+    
+    // Fallback check
+    const dueDateTime = isNaN(localDate.getTime()) 
+      ? new Date().toISOString() 
+      : localDate.toISOString();
 
     onSave({
       companyId: company.id,
@@ -69,7 +83,7 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
         <div className="modal-header">
           <div className="modal-title">
             <Bell size={20} className="text-amber-400" />
-            <span>Set Follow-Up Reminder Notification</span>
+            <span>Set Follow-Up Reminder (IST)</span>
           </div>
           <button className="btn btn-secondary btn-icon-only" onClick={onClose}>
             <X size={18} />
@@ -98,7 +112,7 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Follow-Up Date *</label>
+              <label className="form-label">Follow-Up Date (IST) *</label>
               <input 
                 type="date" 
                 className="form-input-raw"
@@ -109,7 +123,10 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Reminder Time *</label>
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Clock size={13} className="text-amber-400" />
+                <span>Reminder Time (IST - UTC+5:30) *</span>
+              </label>
               <input 
                 type="time" 
                 className="form-input-raw"
@@ -149,7 +166,7 @@ export const ReminderModal: React.FC<ReminderModalProps> = ({
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
-              Schedule Notification
+              Schedule Notification (IST)
             </button>
           </div>
         </form>

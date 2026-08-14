@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Company, 
   HRContact, 
@@ -17,6 +17,18 @@ import {
   exportCompaniesAsCSV,
   exportDataAsJSON
 } from './utils/storage';
+import { 
+  fetchCompaniesFromSupabase,
+  fetchRemindersFromSupabase,
+  upsertCompanyToSupabase,
+  deleteCompanyFromSupabase,
+  upsertHRContactToSupabase,
+  deleteHRContactFromSupabase,
+  upsertReminderToSupabase,
+  deleteReminderFromSupabase,
+  subscribeToRealtimeSync
+} from './services/supabaseService';
+import { isSupabaseConfigured } from './utils/supabaseClient';
 import { INITIAL_COMPANIES, INITIAL_REMINDERS } from './data/initialData';
 import { Header } from './components/Header';
 import { StatsBar } from './components/StatsBar';
@@ -36,7 +48,7 @@ export const App: React.FC = () => {
   
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     searchQuery: '',
-    selectedPriority: 'Top Priority', // Default active section tab
+    selectedPriority: 'Top Priority',
     selectedStatus: 'All',
     showOnlyDone: false,
     sortBy: 'updatedAt',
@@ -60,15 +72,44 @@ export const App: React.FC = () => {
   const [emailTargetCompany, setEmailTargetCompany] = useState<Company | null>(null);
   const [emailTargetHR, setEmailTargetHR] = useState<HRContact | null>(null);
 
-  // Initial Data Load
-  useEffect(() => {
-    const loadedCompanies = loadCompaniesFromStorage();
-    const loadedReminders = loadRemindersFromStorage();
-    setCompanies(loadedCompanies);
-    setReminders(loadedReminders);
+  // Load Data function (Supabase with LocalStorage fallback)
+  const loadAllData = useCallback(async () => {
+    if (isSupabaseConfigured()) {
+      const cloudCompanies = await fetchCompaniesFromSupabase();
+      const cloudReminders = await fetchRemindersFromSupabase();
+
+      if (cloudCompanies !== null) {
+        setCompanies(cloudCompanies);
+        saveCompaniesToStorage(cloudCompanies);
+      } else {
+        setCompanies(loadCompaniesFromStorage());
+      }
+
+      if (cloudReminders !== null) {
+        setReminders(cloudReminders);
+        saveRemindersToStorage(cloudReminders);
+      } else {
+        setReminders(loadRemindersFromStorage());
+      }
+    } else {
+      setCompanies(loadCompaniesFromStorage());
+      setReminders(loadRemindersFromStorage());
+    }
   }, []);
 
-  // Save changes to localStorage on state mutations
+  // Initial Data Load & Realtime Subscription setup
+  useEffect(() => {
+    loadAllData();
+
+    if (isSupabaseConfigured()) {
+      const unsubscribe = subscribeToRealtimeSync(() => {
+        loadAllData();
+      });
+      return () => unsubscribe();
+    }
+  }, [loadAllData]);
+
+  // Sync to local storage as fallback backup
   useEffect(() => {
     if (companies.length > 0) {
       saveCompaniesToStorage(companies);
@@ -120,7 +161,7 @@ export const App: React.FC = () => {
       if (filterOptions.selectedPriority === 'Done') {
         if (!company.isDone) return false;
       } else if (filterOptions.selectedPriority !== 'All') {
-        if (company.isDone) return false; // Hide done companies from active priority tabs unless 'All' or 'Done' tab selected
+        if (company.isDone) return false;
         if (company.priorityCategory !== filterOptions.selectedPriority) return false;
       }
 
@@ -137,30 +178,25 @@ export const App: React.FC = () => {
         const order = { 'Top Priority': 1, 'Medium Priority': 2, 'Low CTC / Call Later': 3 };
         return (order[a.priorityCategory] || 4) - (order[b.priorityCategory] || 4);
       } else {
-        // default by updatedAt
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }
     });
   }, [companies, filterOptions]);
 
   // --- Handlers: Company Operations ---
-  const handleSaveCompany = (companyData: Partial<Company>) => {
+  const handleSaveCompany = async (companyData: Partial<Company>) => {
     const nowISO = new Date().toISOString();
 
     if (editingCompany) {
-      // Update existing
-      setCompanies(prev => prev.map(c => {
-        if (c.id === editingCompany.id) {
-          return {
-            ...c,
-            ...companyData,
-            updatedAt: nowISO
-          };
-        }
-        return c;
-      }));
+      const updatedComp: Company = {
+        ...editingCompany,
+        ...companyData,
+        updatedAt: nowISO
+      };
+
+      setCompanies(prev => prev.map(c => c.id === editingCompany.id ? updatedComp : c));
+      await upsertCompanyToSupabase(updatedComp);
     } else {
-      // Add new
       const newCompany: Company = {
         id: `comp-${Date.now()}`,
         name: companyData.name || 'New Company',
@@ -176,56 +212,63 @@ export const App: React.FC = () => {
         createdAt: nowISO,
         updatedAt: nowISO,
       };
+
       setCompanies(prev => [newCompany, ...prev]);
+      await upsertCompanyToSupabase(newCompany);
     }
   };
 
-  const handleToggleDone = (companyId: string, currentDone: boolean) => {
-    setCompanies(prev => prev.map(c => {
-      if (c.id === companyId) {
-        const newDone = !currentDone;
-        return {
-          ...c,
-          isDone: newDone,
-          status: newDone ? 'Completed' : (c.status === 'Completed' ? 'In Discussion' : c.status),
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return c;
-    }));
+  const handleToggleDone = async (companyId: string, currentDone: boolean) => {
+    const targetComp = companies.find(c => c.id === companyId);
+    if (!targetComp) return;
+
+    const newDone = !currentDone;
+    const updatedComp: Company = {
+      ...targetComp,
+      isDone: newDone,
+      status: newDone ? 'Completed' : (targetComp.status === 'Completed' ? 'In Discussion' : targetComp.status),
+      updatedAt: new Date().toISOString()
+    };
+
+    setCompanies(prev => prev.map(c => c.id === companyId ? updatedComp : c));
+    await upsertCompanyToSupabase(updatedComp);
   };
 
-  const handleUpdateCompanyStatus = (companyId: string, status: CompanyStatus) => {
-    setCompanies(prev => prev.map(c => {
-      if (c.id === companyId) {
-        return {
-          ...c,
-          status,
-          isDone: status === 'Completed' ? true : c.isDone,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return c;
-    }));
+  const handleUpdateCompanyStatus = async (companyId: string, status: CompanyStatus) => {
+    const targetComp = companies.find(c => c.id === companyId);
+    if (!targetComp) return;
+
+    const updatedComp: Company = {
+      ...targetComp,
+      status,
+      isDone: status === 'Completed' ? true : targetComp.isDone,
+      updatedAt: new Date().toISOString()
+    };
+
+    setCompanies(prev => prev.map(c => c.id === companyId ? updatedComp : c));
+    await upsertCompanyToSupabase(updatedComp);
   };
 
-  const handleUpdateCompanyPriority = (companyId: string, priorityCategory: PrioritySection) => {
-    setCompanies(prev => prev.map(c => {
-      if (c.id === companyId) {
-        return {
-          ...c,
-          priorityCategory,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return c;
-    }));
+  const handleUpdateCompanyPriority = async (companyId: string, priorityCategory: PrioritySection) => {
+    const targetComp = companies.find(c => c.id === companyId);
+    if (!targetComp) return;
+
+    const updatedComp: Company = {
+      ...targetComp,
+      priorityCategory,
+      updatedAt: new Date().toISOString()
+    };
+
+    setCompanies(prev => prev.map(c => c.id === companyId ? updatedComp : c));
+    await upsertCompanyToSupabase(updatedComp);
   };
 
-  const handleDeleteCompany = (companyId: string) => {
+  const handleDeleteCompany = async (companyId: string) => {
     if (window.confirm('Are you sure you want to remove this company and all associated HR contacts?')) {
       setCompanies(prev => prev.filter(c => c.id !== companyId));
       setReminders(prev => prev.filter(r => r.companyId !== companyId));
+
+      await deleteCompanyFromSupabase(companyId);
     }
   };
 
@@ -242,49 +285,43 @@ export const App: React.FC = () => {
     setIsHRModalOpen(true);
   };
 
-  const handleSaveHR = (hrData: Partial<HRContact>) => {
+  const handleSaveHR = async (hrData: Partial<HRContact>) => {
     if (!activeCompanyIdForHR) return;
+
+    let savedHr: HRContact;
+
+    if (editingHR) {
+      savedHr = { ...editingHR, ...hrData } as HRContact;
+    } else {
+      savedHr = {
+        id: `hr-${Date.now()}`,
+        name: hrData.name || 'HR Recruiter',
+        designation: hrData.designation || 'HR Manager',
+        email: hrData.email || '',
+        phone: hrData.phone || '',
+        linkedin: hrData.linkedin || '',
+        status: hrData.status || 'Not Contacted',
+        notes: hrData.notes || '',
+        lastContactedDate: new Date().toISOString().slice(0, 10)
+      };
+    }
 
     setCompanies(prev => prev.map(c => {
       if (c.id === activeCompanyIdForHR) {
         const existingHrs = c.hrs || [];
-        let updatedHrs: HRContact[];
+        const updatedHrs = editingHR 
+          ? existingHrs.map(h => h.id === editingHR.id ? savedHr : h)
+          : [...existingHrs, savedHr];
 
-        if (editingHR) {
-          // Update HR
-          updatedHrs = existingHrs.map(h => {
-            if (h.id === editingHR.id) {
-              return { ...h, ...hrData } as HRContact;
-            }
-            return h;
-          });
-        } else {
-          // Add new HR
-          const newHR: HRContact = {
-            id: `hr-${Date.now()}`,
-            name: hrData.name || 'HR Recruiter',
-            designation: hrData.designation || 'HR Manager',
-            email: hrData.email || '',
-            phone: hrData.phone || '',
-            linkedin: hrData.linkedin || '',
-            status: hrData.status || 'Not Contacted',
-            notes: hrData.notes || '',
-            lastContactedDate: new Date().toISOString().slice(0, 10)
-          };
-          updatedHrs = [...existingHrs, newHR];
-        }
-
-        return {
-          ...c,
-          hrs: updatedHrs,
-          updatedAt: new Date().toISOString()
-        };
+        return { ...c, hrs: updatedHrs, updatedAt: new Date().toISOString() };
       }
       return c;
     }));
+
+    await upsertHRContactToSupabase(activeCompanyIdForHR, savedHr);
   };
 
-  const handleDeleteHR = (companyId: string, hrId: string) => {
+  const handleDeleteHR = async (companyId: string, hrId: string) => {
     if (window.confirm('Remove this HR contact?')) {
       setCompanies(prev => prev.map(c => {
         if (c.id === companyId) {
@@ -296,20 +333,30 @@ export const App: React.FC = () => {
         }
         return c;
       }));
+
+      await deleteHRContactFromSupabase(hrId);
     }
   };
 
-  const handleUpdateHRStatus = (companyId: string, hrId: string, status: HRStatus) => {
+  const handleUpdateHRStatus = async (companyId: string, hrId: string, status: HRStatus) => {
+    const targetComp = companies.find(c => c.id === companyId);
+    const targetHr = targetComp?.hrs.find(h => h.id === hrId);
+    if (!targetHr) return;
+
+    const updatedHr = { ...targetHr, status };
+
     setCompanies(prev => prev.map(c => {
       if (c.id === companyId) {
         return {
           ...c,
-          hrs: c.hrs.map(h => h.id === hrId ? { ...h, status } : h),
+          hrs: c.hrs.map(h => h.id === hrId ? updatedHr : h),
           updatedAt: new Date().toISOString()
         };
       }
       return c;
     }));
+
+    await upsertHRContactToSupabase(companyId, updatedHr);
   };
 
   // --- Handlers: Reminders Operations ---
@@ -319,7 +366,7 @@ export const App: React.FC = () => {
     setIsReminderModalOpen(true);
   };
 
-  const handleSaveReminder = (reminderData: Partial<Reminder>) => {
+  const handleSaveReminder = async (reminderData: Partial<Reminder>) => {
     const newReminder: Reminder = {
       id: `rem-${Date.now()}`,
       companyId: reminderData.companyId || '',
@@ -335,30 +382,33 @@ export const App: React.FC = () => {
     };
 
     setReminders(prev => [newReminder, ...prev]);
+    await upsertReminderToSupabase(newReminder);
   };
 
-  const handleToggleCompleteReminder = (reminderId: string) => {
-    setReminders(prev => prev.map(r => {
-      if (r.id === reminderId) {
-        return { ...r, isCompleted: !r.isCompleted };
-      }
-      return r;
-    }));
+  const handleToggleCompleteReminder = async (reminderId: string) => {
+    const targetRem = reminders.find(r => r.id === reminderId);
+    if (!targetRem) return;
+
+    const updatedRem = { ...targetRem, isCompleted: !targetRem.isCompleted };
+    setReminders(prev => prev.map(r => r.id === reminderId ? updatedRem : r));
+    await upsertReminderToSupabase(updatedRem);
   };
 
-  const handleDeleteReminder = (reminderId: string) => {
+  const handleDeleteReminder = async (reminderId: string) => {
     setReminders(prev => prev.filter(r => r.id !== reminderId));
+    await deleteReminderFromSupabase(reminderId);
   };
 
-  const handleSnoozeReminder = (reminderId: string) => {
-    setReminders(prev => prev.map(r => {
-      if (r.id === reminderId) {
-        const d = new Date(r.dueDateTime);
-        d.setDate(d.getDate() + 1); // add 1 day
-        return { ...r, dueDateTime: d.toISOString() };
-      }
-      return r;
-    }));
+  const handleSnoozeReminder = async (reminderId: string) => {
+    const targetRem = reminders.find(r => r.id === reminderId);
+    if (!targetRem) return;
+
+    const d = new Date(targetRem.dueDateTime);
+    d.setDate(d.getDate() + 1);
+    const updatedRem = { ...targetRem, dueDateTime: d.toISOString() };
+
+    setReminders(prev => prev.map(r => r.id === reminderId ? updatedRem : r));
+    await upsertReminderToSupabase(updatedRem);
   };
 
   // --- Handlers: Quick Mail Generator ---
@@ -384,7 +434,7 @@ export const App: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
         if (json.companies && Array.isArray(json.companies)) {
@@ -392,6 +442,19 @@ export const App: React.FC = () => {
           if (json.reminders && Array.isArray(json.reminders)) {
             setReminders(json.reminders);
           }
+
+          // Push to Supabase if configured
+          if (isSupabaseConfigured()) {
+            for (const c of json.companies) {
+              await upsertCompanyToSupabase(c);
+              if (c.hrs && Array.isArray(c.hrs)) {
+                for (const h of c.hrs) {
+                  await upsertHRContactToSupabase(c.id, h);
+                }
+              }
+            }
+          }
+
           alert(`Successfully imported ${json.companies.length} companies!`);
         } else {
           alert('Invalid file format. File must contain a "companies" array.');

@@ -7,9 +7,12 @@ import {
   Upload, 
   Mail, 
   RotateCcw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { PlacementStats } from '../types';
+import { isSupabaseConfigured } from '../utils/supabaseClient';
 
 interface HeaderProps {
   stats: PlacementStats;
@@ -49,6 +52,20 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="controls-bar">
+        {/* Cloud Sync Status Indicator */}
+        <div 
+          className="status-pill"
+          style={{ 
+            background: isSupabaseConfigured() ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+            color: isSupabaseConfigured() ? '#34d399' : '#fbbf24',
+            padding: '0.4rem 0.75rem',
+            borderRadius: 'var(--radius-md)'
+          }}
+          title={isSupabaseConfigured() ? 'Supabase Realtime Cloud Sync Active' : 'Offline / LocalStorage Mode. Add Supabase keys to .env for real-time collaboration.'}
+        >
+          {isSupabaseConfigured() ? <Cloud size={15} /> : <CloudOff size={15} />}
+          <span>{isSupabaseConfigured() ? 'Cloud Sync' : 'Local Mode'}</span>
+        </div>
         {/* Email templates helper */}
         <button 
           className="btn btn-secondary btn-sm"

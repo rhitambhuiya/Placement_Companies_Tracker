@@ -74,6 +74,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
       case 'Top Priority': return 'top-priority';
       case 'Medium Priority': return 'medium-priority';
       case 'Low CTC / Call Later': return 'low-ctc';
+      case 'Extra': return 'extra-priority';
       default: return '';
     }
   };
@@ -193,6 +194,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
             <option value="Top Priority">Category: Top Priority</option>
             <option value="Medium Priority">Category: Medium Priority</option>
             <option value="Low CTC / Call Later">Category: Low CTC / Call Later</option>
+            <option value="Extra">Category: Extra</option>
           </select>
         </div>
 

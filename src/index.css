@@ -30,6 +30,10 @@
   --low-priority-bg: rgba(59, 130, 246, 0.15);
   --low-priority-border: rgba(59, 130, 246, 0.35);
 
+  --extra-priority-color: #a855f7;
+  --extra-priority-bg: rgba(168, 85, 247, 0.15);
+  --extra-priority-border: rgba(168, 85, 247, 0.35);
+
   --done-color: #10b981;
   --done-bg: rgba(16, 185, 129, 0.15);
 
@@ -319,6 +323,11 @@ body {
   color: #60a5fa;
 }
 
+.tab-button.active.extra-priority {
+  border-color: var(--extra-priority-border);
+  color: #c084fc;
+}
+
 .tab-button.active.done-priority {
   border-color: rgba(16, 185, 129, 0.4);
   color: #34d399;
@@ -527,6 +536,12 @@ body {
   background: var(--low-priority-bg);
   color: var(--low-priority-color);
   border: 1px solid var(--low-priority-border);
+}
+
+.priority-tag.extra-priority {
+  background: var(--extra-priority-bg);
+  color: var(--extra-priority-color);
+  border: 1px solid var(--extra-priority-border);
 }
 
 .priority-tag.done-tag {

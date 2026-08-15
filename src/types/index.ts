@@ -1,4 +1,4 @@
-export type PrioritySection = 'Top Priority' | 'Medium Priority' | 'Low CTC / Call Later';
+export type PrioritySection = 'Top Priority' | 'Medium Priority' | 'Low CTC / Call Later' | 'Extra';
 
 export type CompanyStatus = 
   | 'Uncontacted' 
@@ -68,6 +68,7 @@ export interface PlacementStats {
   topPriorityCount: number;
   mediumPriorityCount: number;
   lowCtcCount: number;
+  extraCount: number;
   completedCompaniesCount: number;
   totalHrs: number;
   activeRemindersCount: number;

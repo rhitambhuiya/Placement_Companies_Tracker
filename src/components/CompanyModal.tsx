@@ -105,6 +105,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
                 <option value="Top Priority">Top Priority (Tier 1 / High CTC)</option>
                 <option value="Medium Priority">Medium Priority (Standard Recruiters)</option>
                 <option value="Low CTC / Call Later">Low CTC / Call Later in Season</option>
+                <option value="Extra">Extra (Unassigned / Tentative recruiters)</option>
               </select>
             </div>
 

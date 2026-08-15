@@ -5,7 +5,8 @@ import {
   Clock, 
   CheckCheck, 
   Search, 
-  Grid
+  Grid,
+  Sparkles
 } from 'lucide-react';
 import { CompanyStatus, FilterOptions } from '../types';
 
@@ -16,6 +17,7 @@ interface SectionTabsProps {
     topPriority: number;
     mediumPriority: number;
     lowCtc: number;
+    extra: number;
     done: number;
     all: number;
   };
@@ -57,6 +59,15 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
           <Clock size={16} />
           <span>Low CTC / Call Later</span>
           <span className="tab-badge">{counts.lowCtc}</span>
+        </button>
+
+        <button
+          className={`tab-button extra-priority ${currentTab === 'Extra' ? 'active' : ''}`}
+          onClick={() => onFilterChange({ selectedPriority: 'Extra', showOnlyDone: false })}
+        >
+          <Sparkles size={16} />
+          <span>Extra</span>
+          <span className="tab-badge">{counts.extra}</span>
         </button>
 
         <button

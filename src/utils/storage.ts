@@ -55,6 +55,7 @@ export const calculateStats = (companies: Company[], reminders: Reminder[]): Pla
   const topPriorityCount = companies.filter(c => c.priorityCategory === 'Top Priority' && !c.isDone).length;
   const mediumPriorityCount = companies.filter(c => c.priorityCategory === 'Medium Priority' && !c.isDone).length;
   const lowCtcCount = companies.filter(c => c.priorityCategory === 'Low CTC / Call Later' && !c.isDone).length;
+  const extraCount = companies.filter(c => c.priorityCategory === 'Extra' && !c.isDone).length;
   const completedCompaniesCount = companies.filter(c => c.isDone || c.status === 'Completed').length;
   
   let totalHrs = 0;
@@ -75,6 +76,7 @@ export const calculateStats = (companies: Company[], reminders: Reminder[]): Pla
     topPriorityCount,
     mediumPriorityCount,
     lowCtcCount,
+    extraCount,
     completedCompaniesCount,
     totalHrs,
     activeRemindersCount,

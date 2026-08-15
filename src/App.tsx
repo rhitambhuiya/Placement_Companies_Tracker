@@ -129,6 +129,7 @@ export const App: React.FC = () => {
       topPriority: companies.filter(c => c.priorityCategory === 'Top Priority' && !c.isDone).length,
       mediumPriority: companies.filter(c => c.priorityCategory === 'Medium Priority' && !c.isDone).length,
       lowCtc: companies.filter(c => c.priorityCategory === 'Low CTC / Call Later' && !c.isDone).length,
+      extra: companies.filter(c => c.priorityCategory === 'Extra' && !c.isDone).length,
       done: companies.filter(c => c.isDone).length,
       all: companies.length,
     };
@@ -175,8 +176,8 @@ export const App: React.FC = () => {
       if (filterOptions.sortBy === 'name') {
         return a.name.localeCompare(b.name);
       } else if (filterOptions.sortBy === 'priority') {
-        const order = { 'Top Priority': 1, 'Medium Priority': 2, 'Low CTC / Call Later': 3 };
-        return (order[a.priorityCategory] || 4) - (order[b.priorityCategory] || 4);
+        const order = { 'Top Priority': 1, 'Medium Priority': 2, 'Low CTC / Call Later': 3, 'Extra': 4 };
+        return (order[a.priorityCategory] || 5) - (order[b.priorityCategory] || 5);
       } else {
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       }

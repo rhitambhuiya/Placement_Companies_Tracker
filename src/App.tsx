@@ -185,8 +185,18 @@ export const App: React.FC = () => {
   }, [companies, filterOptions]);
 
   // --- Handlers: Company Operations ---
-  const handleSaveCompany = async (companyData: Partial<Company>) => {
+  const handleSaveCompany = async (companyData: Partial<Company>): Promise<boolean> => {
     const nowISO = new Date().toISOString();
+    const trimmedName = companyData.name?.trim() || '';
+
+    const isDuplicate = companies.some(c => 
+      (!editingCompany || c.id !== editingCompany.id) && 
+      c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      return false;
+    }
 
     if (editingCompany) {
       const updatedComp: Company = {
@@ -217,6 +227,7 @@ export const App: React.FC = () => {
       setCompanies(prev => [newCompany, ...prev]);
       await upsertCompanyToSupabase(newCompany);
     }
+    return true;
   };
 
   const handleToggleDone = async (companyId: string, currentDone: boolean) => {
@@ -555,6 +566,7 @@ export const App: React.FC = () => {
         onSave={handleSaveCompany}
         editingCompany={editingCompany}
         initialPriority={filterOptions.selectedPriority === 'All' || filterOptions.selectedPriority === 'Done' ? 'Top Priority' : filterOptions.selectedPriority}
+        existingCompanies={companies}
       />
 
       <HRModal

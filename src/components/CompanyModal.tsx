@@ -1,13 +1,14 @@
 import React from 'react';
-import { X, Building2 } from 'lucide-react';
+import { X, Building2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Company, PrioritySection, CompanyStatus } from '../types';
 
 interface CompanyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (companyData: Partial<Company>) => void;
+  onSave: (companyData: Partial<Company>) => boolean | Promise<boolean>;
   editingCompany?: Company | null;
   initialPriority?: PrioritySection;
+  existingCompanies: Company[];
 }
 
 export const CompanyModal: React.FC<CompanyModalProps> = ({
@@ -16,6 +17,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
   onSave,
   editingCompany,
   initialPriority = 'Top Priority',
+  existingCompanies = [],
 }) => {
   const [name, setName] = React.useState('');
   const [industry, setIndustry] = React.useState('');
@@ -25,6 +27,9 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
   const [ctcPackage, setCtcPackage] = React.useState('');
   const [location, setLocation] = React.useState('');
   const [notes, setNotes] = React.useState('');
+  
+  const [warningMsg, setWarningMsg] = React.useState('');
+  const [isExactDuplicate, setIsExactDuplicate] = React.useState(false);
 
   React.useEffect(() => {
     if (editingCompany) {
@@ -36,6 +41,8 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
       setCtcPackage(editingCompany.ctcPackage || '');
       setLocation(editingCompany.location || '');
       setNotes(editingCompany.notes || '');
+      setWarningMsg('');
+      setIsExactDuplicate(false);
     } else {
       setName('');
       setIndustry('');
@@ -45,17 +52,65 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
       setCtcPackage('');
       setLocation('');
       setNotes('');
+      setWarningMsg('');
+      setIsExactDuplicate(false);
     }
   }, [editingCompany, initialPriority, isOpen]);
 
+  // Realtime duplicate & prefix substring check on typing
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setName(val);
+
+    const trimmedVal = val.trim().toLowerCase();
+    if (trimmedVal.length > 0) {
+      // Check for prefix substring matches from the start of existing record names
+      const matches = existingCompanies.filter(c => 
+        (!editingCompany || c.id !== editingCompany.id) && 
+        c.name.trim().toLowerCase().startsWith(trimmedVal)
+      );
+
+      const exactMatch = matches.find(c => c.name.trim().toLowerCase() === trimmedVal);
+
+      if (exactMatch) {
+        setIsExactDuplicate(true);
+        setWarningMsg(`Exact duplicate: Company "${exactMatch.name}" already exists!`);
+      } else if (matches.length > 0) {
+        setIsExactDuplicate(false);
+        const matchNames = matches.slice(0, 3).map(c => `"${c.name}"`).join(', ');
+        const extraText = matches.length > 3 ? ` and ${matches.length - 3} more` : '';
+        setWarningMsg(`Matching existing record(s): ${matchNames}${extraText}`);
+      } else {
+        setIsExactDuplicate(false);
+        setWarningMsg('');
+      }
+    } else {
+      setIsExactDuplicate(false);
+      setWarningMsg('');
+    }
+  };
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
 
-    onSave({
-      name: name.trim(),
+    // Check exact duplicate
+    const isDup = existingCompanies.some(c => 
+      (!editingCompany || c.id !== editingCompany.id) && 
+      c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDup) {
+      setIsExactDuplicate(true);
+      setWarningMsg(`Company "${trimmedName}" already exists! Duplicate entries are not allowed.`);
+      return;
+    }
+
+    const success = await onSave({
+      name: trimmedName,
       industry: industry.trim() || 'Technology / Corporate',
       website: website.trim(),
       priorityCategory,
@@ -65,7 +120,9 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
       notes: notes.trim(),
     });
 
-    onClose();
+    if (success !== false) {
+      onClose();
+    }
   };
 
   return (
@@ -81,6 +138,28 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
           </button>
         </div>
 
+        {/* Prefix / Duplicate Warning Banner */}
+        {warningMsg && (
+          <div 
+            style={{ 
+              background: isExactDuplicate ? 'rgba(244, 63, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)', 
+              border: `1px solid ${isExactDuplicate ? 'rgba(244, 63, 94, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`, 
+              color: isExactDuplicate ? '#f87171' : '#fbbf24', 
+              padding: '0.75rem 1rem', 
+              borderRadius: 'var(--radius-md)', 
+              fontSize: '0.85rem', 
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontWeight: 600
+            }}
+          >
+            {isExactDuplicate ? <AlertTriangle size={18} /> : <AlertCircle size={18} />}
+            <span>{warningMsg}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Company Name *</label>
@@ -89,7 +168,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
               className="form-input-raw"
               placeholder="e.g. Google India, Microsoft, Deloitte"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={handleNameChange}
               required 
             />
           </div>
@@ -192,7 +271,7 @@ export const CompanyModal: React.FC<CompanyModalProps> = ({
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary" disabled={isExactDuplicate}>
               {editingCompany ? 'Save Changes' : 'Create Company'}
             </button>
           </div>

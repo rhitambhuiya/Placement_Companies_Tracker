@@ -167,7 +167,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
         <div>
           <select
             className={`form-select ${getCompanyStatusClass(company.status)}`}
-            style={{ fontSize: '0.775rem', padding: '0.25rem 0.6rem', height: '30px' }}
+            style={{ fontSize: '0.775rem', padding: '0.2rem 1.8rem 0.2rem 0.65rem', height: '30px' }}
             value={company.status}
             onChange={(e) => onUpdateCompanyStatus(company.id, e.target.value as CompanyStatus)}
           >
@@ -187,7 +187,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
         <div>
           <select
             className="form-select"
-            style={{ fontSize: '0.775rem', padding: '0.25rem 0.6rem', height: '30px', background: 'rgba(255,255,255,0.05)' }}
+            style={{ fontSize: '0.775rem', padding: '0.2rem 1.8rem 0.2rem 0.65rem', height: '30px', background: 'rgba(255,255,255,0.05)' }}
             value={company.priorityCategory}
             onChange={(e) => onUpdateCompanyPriority(company.id, e.target.value as PrioritySection)}
           >
@@ -276,7 +276,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
                     <div>
                       <select
                         className="form-select"
-                        style={{ fontSize: '0.725rem', padding: '0.15rem 0.4rem', height: '26px' }}
+                        style={{ fontSize: '0.725rem', padding: '0.1rem 1.6rem 0.1rem 0.5rem', height: '26px' }}
                         value={hr.status}
                         onChange={(e) => onUpdateHRStatus(company.id, hr.id, e.target.value as HRStatus)}
                       >
